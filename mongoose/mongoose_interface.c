@@ -511,7 +511,7 @@ int start_mongoose(const char *cfgfname, int argc, char *argv[])
 	struct mg_mgr mgr;
 	struct mg_connection *nc;
 	struct mg_bind_opts bind_opts;
-	const char *s_http_port = NULL;
+	const char *s_http_addr[16];
 	const char *err_str;
 #if MG_ENABLE_SSL
 	bool ssl = false;
@@ -588,7 +588,11 @@ int start_mongoose(const char *cfgfname, int argc, char *argv[])
 		opts.root ? opts.root : MG_ROOT;
 	s_http_server_opts.enable_directory_listing =
 		opts.listing ? "yes" : "no";
-	s_http_port = opts.port ? opts.port : MG_PORT;
+#if defined(CONFIG_MONGOOSEIPV6)
+	snprintf(s_http_addr, sizeof(s_http_addr), "[::]:%s", opts.port ? opts.port : MG_PORT);
+#else
+	snprintf(s_http_addr, sizeof(s_http_addr), "%s", opts.port ? opts.port : MG_PORT);
+#endif
 	s_http_server_opts.global_auth_file = opts.global_auth_file;
 	s_http_server_opts.auth_domain = opts.auth_domain;
 
@@ -603,7 +607,7 @@ int start_mongoose(const char *cfgfname, int argc, char *argv[])
 
 	mg_mgr_init(&mgr, NULL);
 
-	nc = mg_bind_opt(&mgr, s_http_port, ev_handler, bind_opts);
+	nc = mg_bind_opt(&mgr, s_http_addr, ev_handler, bind_opts);
 	if (nc == NULL) {
 		fprintf(stderr, "Failed to start Mongoose: %s\n", *bind_opts.error_string);
 		exit(EXIT_FAILURE);
@@ -624,8 +628,8 @@ int start_mongoose(const char *cfgfname, int argc, char *argv[])
 	mg_start_thread(broadcast_message_thread, &mgr);
 	mg_start_thread(broadcast_progress_thread, &mgr);
 
-	printf("Mongoose web server version %s with pid %d started on port(s) %s with web root [%s]\n",
-		MG_VERSION, getpid(), s_http_port,
+	printf("Mongoose web server version %s with pid %d started on address %s with web root [%s]\n",
+		MG_VERSION, getpid(), s_http_addr,
 		s_http_server_opts.document_root);
 
 	for (;;) {
